@@ -7,3 +7,5 @@ tensorboardX>=1.14
 scipy 
 opencv-python
 clean-fid
+basicsr
+requests
