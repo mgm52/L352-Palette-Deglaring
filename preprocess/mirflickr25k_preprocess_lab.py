@@ -37,7 +37,7 @@ if __name__ == '__main__':
     all_color, all_l = load_data(home)
     image_color, image_l = convert_abl(all_color, all_l)
     
-    color_save_path, gray_save_path  = '{}/color'.format(image_save_path), '{}/gray'.format(image_save_path)
+    color_save_path, gray_save_path  = '{}/colorpng'.format(image_save_path), '{}/graypng'.format(image_save_path)
     os.makedirs(color_save_path, exist_ok=True)
     os.makedirs(gray_save_path, exist_ok=True)
     for i in range(image_color.shape[0]):

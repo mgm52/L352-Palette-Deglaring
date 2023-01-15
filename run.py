@@ -1,5 +1,7 @@
 import argparse
 import os
+import sys
+import traceback
 import warnings
 import torch
 import torch.multiprocessing as mp
@@ -9,6 +11,7 @@ import core.praser as Praser
 import core.util as Util
 from data import define_dataloader
 from models import create_model, define_network, define_loss, define_metric
+import wandb
 
 def main_worker(gpu, ngpus_per_node, opt):
     """  threads running on each GPU """
@@ -61,20 +64,7 @@ def main_worker(gpu, ngpus_per_node, opt):
     finally:
         phase_writer.close()
         
-        
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', type=str, default='config/colorization_mirflickr25k.json', help='JSON file for configuration')
-    parser.add_argument('-p', '--phase', type=str, choices=['train','test'], help='Run train or test', default='train')
-    parser.add_argument('-b', '--batch', type=int, default=None, help='Batch size in every gpu')
-    parser.add_argument('-gpu', '--gpu_ids', type=str, default=None)
-    parser.add_argument('-d', '--debug', action='store_true')
-    parser.add_argument('-P', '--port', default='21012', type=str)
-
-    ''' parser configs '''
-    args = parser.parse_args()
-    opt = Praser.parse(args)
-    
+def main(opt):
     ''' cuda devices '''
     gpu_str = ','.join(str(x) for x in opt['gpu_ids'])
     os.environ['CUDA_VISIBLE_DEVICES'] = gpu_str
@@ -90,3 +80,73 @@ if __name__ == '__main__':
     else:
         opt['world_size'] = 1 
         main_worker(0, 1, opt)
+
+def main_with_wandb():
+    with wandb.init() as run:
+        wcfg = wandb.config
+
+        opt = Praser.parse(args)
+        wcfg = wandb.config.as_dict()
+
+        opt['datasets']['train']['dataloader']['args']['batch_size'] = wcfg['batch_size']
+        opt['model']['which_model']['args']['optimizers'][0]['lr'] = wcfg['start_lr']
+        opt['model']['which_model']['args']['optimizers'][0]['weight_decay'] = wcfg['weight_decay']
+        for u_p in ['inner_channel', 'channel_mults', 'attn_res', 'num_head_channels', 'res_blocks', 'dropout', 'groupnorm']:
+            opt['model']['which_networks'][0]['args']['unet'][u_p] = wcfg['unet_' + u_p]
+        opt['model']['which_networks'][0]['args']['beta_schedule']['train']['schedule'] = wcfg['beta_schedule']
+
+        opt['train']['val_epoch'] = 5
+        opt['train']['n_epoch'] = 5
+        opt['train']['save_checkpoint_epoch'] = 999 # save ssd space
+
+        try:
+            main(opt)
+        except Exception as e:
+            raise Exception("Error in main_with_wandb: {}, stack trace: {}".format(e, traceback.format_exc()))
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', type=str, default='config/glareremoval.json', help='JSON file for configuration')
+    parser.add_argument('-p', '--phase', type=str, choices=['train','test'], help='Run train or test', default='train')
+    parser.add_argument('-b', '--batch', type=int, default=None, help='Batch size in every gpu')
+    parser.add_argument('-gpu', '--gpu_ids', type=str, default=None)
+    parser.add_argument('-sid', '--sweep_id', type=str, default=None)
+    parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument('-w', '--wandb', action='store_true')
+    parser.add_argument('-P', '--port', default='21012', type=str)
+
+    args = parser.parse_args()
+
+    if args.wandb:
+        sweep_configuration = {
+            'method': 'bayes',
+            'name': 'sweep',
+            'metric': {
+                'goal': 'minimize', 
+                'name': 'val/mae'
+                },
+            'parameters': {
+                'batch_size': {'values': [64]},
+                'start_lr': {'max': 5e-3, 'min': 5e-6, 'distribution': 'log_uniform_values'},
+                'weight_decay': {'values': [1e-5, 1e-6, 1e-7, 0]},
+                'unet_inner_channel': {'values': [8, 16, 32, 64]},
+                'unet_channel_mults': {'values': [[1, 2], [1, 2, 4], [1, 2, 4, 8]]},
+                'unet_attn_res': {'values': [[8], [16]]},
+                'unet_num_head_channels': {'values': [8, 16, 32, 64]},
+                'unet_res_blocks': {'values': [1, 2, 3]},
+                'unet_dropout': {'values': [0.1, 0.2]},
+                'unet_groupnorm': {'values': [True, False]},
+                'beta_schedule': {'values': ["linear", "quad"]}
+            }
+        }
+
+        if args.sweep_id is not None:
+            sweep_id = args.sweep_id
+        else:
+            sweep_id = wandb.sweep(sweep=sweep_configuration, project="PaletteDeglare-Sweeps")
+        wandb.agent(sweep_id=sweep_id, function=main_with_wandb, project="PaletteDeglare-Sweeps")
+    else:
+        ''' parser configs '''
+        # args.debug = True
+        opt = Praser.parse(args)
+        main(opt)

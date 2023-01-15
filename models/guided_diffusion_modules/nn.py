@@ -38,16 +38,33 @@ def mean_flat(tensor):
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
 
 
-def normalization(channels):
+def normalization(channels, groupnorm=True):
     """
     Make a standard normalization layer.
 
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNorm32(32, channels)
+    if groupnorm:
+        return GroupNorm32(32, channels)
+    else:
+        return BatchNormAnyDim(channels) #nn.BatchNorm2d(channels)
 
+class BatchNormAnyDim(nn.Module):
+    """
+    BatchNorm for any number of dimensions.
+    """
 
+    def __init__(self, channels):
+        super().__init__()
+        self.bn1 = nn.BatchNorm1d(channels)
+        self.bn2 = nn.BatchNorm2d(channels)
+
+    def forward(self, x):
+        if x.dim() == 4:
+            return self.bn2(x)
+        else:
+            return self.bn1(x)
 
 def checkpoint(func, inputs, params, flag):
     """

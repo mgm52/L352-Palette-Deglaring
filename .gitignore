@@ -1,5 +1,6 @@
 # myself
 experiments/*
+wandb/*
 datasets/*
 !experiments/clean.sh
 

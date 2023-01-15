@@ -3,6 +3,8 @@ import tqdm
 from core.base_model import BaseModel
 from core.logger import LogTracker
 import copy
+import time
+import wandb
 class EMA():
     def __init__(self, beta=0.9999):
         super().__init__()
@@ -17,13 +19,14 @@ class EMA():
         return old * self.beta + (1 - self.beta) * new
 
 class Palette(BaseModel):
-    def __init__(self, networks, losses, sample_num, task, optimizers, ema_scheduler=None, **kwargs):
+    def __init__(self, networks, losses, sample_num, task, optimizers, mask_on_metrics, ema_scheduler=None, **kwargs):
         ''' must to init BaseModel with kwargs '''
         super(Palette, self).__init__(**kwargs)
 
         ''' networks, dataloder, optimizers, losses, etc. '''
         self.loss_fn = losses[0]
         self.netG = networks[0]
+        self.mask_on_metrics = mask_on_metrics
         if ema_scheduler is not None:
             self.ema_scheduler = ema_scheduler
             self.netG_EMA = copy.deepcopy(self.netG)
@@ -88,6 +91,12 @@ class Palette(BaseModel):
             ret_path.append('GT_{}'.format(self.path[idx]))
             ret_result.append(self.gt_image[idx].detach().float().cpu())
 
+            ret_path.append('CondImage_{}'.format(self.path[idx]))
+            ret_result.append(self.cond_image[idx].detach().float().cpu())
+
+            ret_path.append('Mask_{}'.format(self.path[idx]))
+            ret_result.append(self.mask[idx].detach().float().cpu())
+
             ret_path.append('Process_{}'.format(self.path[idx]))
             ret_result.append(self.visuals[idx::self.batch_size].detach().float().cpu())
             
@@ -104,7 +113,13 @@ class Palette(BaseModel):
     def train_step(self):
         self.netG.train()
         self.train_metrics.reset()
-        for train_data in tqdm.tqdm(self.phase_loader):
+        #ts_next_data = []
+        #ts_total = []
+        #t_next_data = time.time() ##
+        #t_total = time.time() ##
+        for train_data in tqdm.tqdm(self.phase_loader, desc='Training'):
+            #ts_next_data.append(time.time() - t_next_data) ##
+
             self.set_input(train_data)
             self.optG.zero_grad()
             loss = self.netG(self.gt_image, self.cond_image, mask=self.mask)
@@ -115,24 +130,32 @@ class Palette(BaseModel):
             self.writer.set_iter(self.epoch, self.iter, phase='train')
             self.train_metrics.update(self.loss_fn.__name__, loss.item())
             if self.iter % self.opt['train']['log_iter'] == 0:
+                wandb_log = {'epoch': self.epoch, 'iters': self.iter, 'lr': self.optG.param_groups[0]['lr']}
                 for key, value in self.train_metrics.result().items():
                     self.logger.info('{:5s}: {}\t'.format(str(key), value))
                     self.writer.add_scalar(key, value)
+                    wandb_log.update({key: value})
+                if wandb.run is not None: wandb.log(wandb_log)
                 for key, value in self.get_current_visuals().items():
                     self.writer.add_images(key, value)
             if self.ema_scheduler is not None:
                 if self.iter > self.ema_scheduler['ema_start'] and self.iter % self.ema_scheduler['ema_iter'] == 0:
                     self.EMA.update_model_average(self.netG_EMA, self.netG)
+            #ts_total.append(time.time() - t_total) ##
+            #t_next_data = time.time() ##
+            #t_total = time.time() ##
+            #print(f"Avg total time per batch: {sum(ts_total)/len(ts_total):.3f}s, of which avg time to fetch batch data: {sum(ts_next_data)/len(ts_next_data):.3f}s")
 
         for scheduler in self.schedulers:
             scheduler.step()
+        
         return self.train_metrics.result()
     
     def val_step(self):
         self.netG.eval()
         self.val_metrics.reset()
         with torch.no_grad():
-            for val_data in tqdm.tqdm(self.val_loader):
+            for val_data in tqdm.tqdm(self.val_loader, desc=f'Validation on {len(self.val_loader)} batches'):
                 self.set_input(val_data)
                 if self.opt['distributed']:
                     if self.task in ['inpainting','uncropping']:
@@ -152,10 +175,14 @@ class Palette(BaseModel):
 
                 for met in self.metrics:
                     key = met.__name__
-                    value = met(self.gt_image, self.output)
+                    if (self.mask is not None) and self.mask_on_metrics:
+                        value = met(self.gt_image, self.output*self.mask + self.gt_image*(1.-self.mask))
+                    else:
+                        value = met(self.gt_image, self.output)
                     self.val_metrics.update(key, value)
                     self.writer.add_scalar(key, value)
                 for key, value in self.get_current_visuals(phase='val').items():
+                    if wandb.run is not None: wandb.log({key: [wandb.Image(value)]}, commit=False)
                     self.writer.add_images(key, value)
                 self.writer.save_images(self.save_current_results())
 
@@ -184,7 +211,10 @@ class Palette(BaseModel):
                 self.writer.set_iter(self.epoch, self.iter, phase='test')
                 for met in self.metrics:
                     key = met.__name__
-                    value = met(self.gt_image, self.output)
+                    if (self.mask is not None) and self.mask_on_metrics:
+                        value = met(self.gt_image, self.output*self.mask + self.gt_image*(1.-self.mask))
+                    else:
+                        value = met(self.gt_image, self.output)
                     self.test_metrics.update(key, value)
                     self.writer.add_scalar(key, value)
                 for key, value in self.get_current_visuals(phase='test').items():

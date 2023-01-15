@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 from functools import partial
 import importlib
+import traceback
 from types  import FunctionType
 import shutil
 def init_obj(opt, logger, *args, default_file_name='default file', given_module=None, init_type='Network', **modify_kwargs):
@@ -46,9 +47,8 @@ def init_obj(opt, logger, *args, default_file_name='default file', given_module=
             # ret = attr
         logger.info('{} [{:s}() form {:s}] is created.'.format(init_type, class_name, file_name))
     except:
-        raise NotImplementedError('{} [{:s}() form {:s}] not recognized.'.format(init_type, class_name, file_name))
+        raise NotImplementedError('{} [{:s}() form {:s}] not recognized. Stack trace: {}'.format(init_type, class_name, file_name, traceback.format_exc()))
     return ret
-
 
 def mkdirs(paths):
     if isinstance(paths, str):
@@ -59,7 +59,6 @@ def mkdirs(paths):
 
 def get_timestamp():
     return datetime.now().strftime('%y%m%d_%H%M%S')
-
 
 def write_json(content, fname):
     fname = Path(fname)

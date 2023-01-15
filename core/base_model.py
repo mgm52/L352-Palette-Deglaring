@@ -5,7 +5,7 @@ import collections
 
 import torch
 import torch.nn as nn
-
+import wandb
 
 import core.util as Util
 CustomResult = collections.namedtuple('CustomResult', 'name result')
@@ -36,7 +36,7 @@ class BaseModel():
         self.results_dict = CustomResult([],[]) # {"name":[], "result":[]}
 
     def train(self):
-        while self.epoch <= self.opt['train']['n_epoch'] and self.iter <= self.opt['train']['n_iter']:
+        while self.epoch < self.opt['train']['n_epoch'] and self.iter < self.opt['train']['n_iter']:
             self.epoch += 1
             if self.opt['distributed']:
                 ''' sets the epoch for this sampler. When :attr:`shuffle=True`, this ensures all replicas use a different random ordering for each epoch '''
@@ -45,12 +45,15 @@ class BaseModel():
             train_log = self.train_step()
 
             ''' save logged informations into log dict ''' 
-            train_log.update({'epoch': self.epoch, 'iters': self.iter})
+            train_log.update({'epoch': self.epoch, 'iters': self.iter, 'lr': self.get_lr()})
 
             ''' print logged informations to the screen and tensorboard ''' 
+            print(f"    [Fin epoch {self.epoch}/{self.opt['train']['n_epoch']} | iter {self.iter}/{self.opt['train']['n_iter']} | loss {train_log['train/mse_loss']} | lr {train_log['lr']}]")
+            if wandb.run is not None: wandb.log(train_log, commit=False)
             for key, value in train_log.items():
                 self.logger.info('{:5s}: {}\t'.format(str(key), value))
-            
+                #print(f"    {key}: {value}")
+                
             if self.epoch % self.opt['train']['save_checkpoint_epoch'] == 0:
                 self.logger.info('Saving the self at the end of epoch {:.0f}'.format(self.epoch))
                 self.save_everything()
@@ -61,9 +64,11 @@ class BaseModel():
                     self.logger.warning('Validation stop where dataloader is None, Skip it.')
                 else:
                     val_log = self.val_step()
+                    if wandb.run is not None: wandb.log(val_log, commit=False)
                     for key, value in val_log.items():
                         self.logger.info('{:5s}: {}\t'.format(str(key), value))
                 self.logger.info("\n------------------------------Validation End------------------------------\n\n")
+            if wandb.run is not None: wandb.log({}) # commit
         self.logger.info('Number of Epochs has reached the limit, End.')
 
     def test(self):
@@ -80,6 +85,12 @@ class BaseModel():
     def test_step(self):
         pass
     
+    def get_lr(self):
+        lr = []
+        for optimizer in self.optimizers:
+            lr.append(optimizer.param_groups[0]['lr'])
+        return lr
+
     def print_network(self, network):
         """ print network structure, only work on GPU 0 """
         if self.opt['global_rank'] !=0:

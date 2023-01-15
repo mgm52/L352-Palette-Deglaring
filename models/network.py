@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from core.base_network import BaseNetwork
 class Network(BaseNetwork):
-    def __init__(self, unet, beta_schedule, module_name='sr3', **kwargs):
+    def __init__(self, unet, beta_schedule, mask_for_loss_only, module_name='sr3', **kwargs):
         super(Network, self).__init__(**kwargs)
         if module_name == 'sr3':
             from .sr3_modules.unet import UNet
@@ -15,6 +15,7 @@ class Network(BaseNetwork):
         
         self.denoise_fn = UNet(**unet)
         self.beta_schedule = beta_schedule
+        self.mask_for_loss_only = mask_for_loss_only
 
     def set_loss(self, loss_fn):
         self.loss_fn = loss_fn
@@ -93,10 +94,10 @@ class Network(BaseNetwork):
         
         y_t = default(y_t, lambda: torch.randn_like(y_cond))
         ret_arr = y_t
-        for i in tqdm(reversed(range(0, self.num_timesteps)), desc='sampling loop time step', total=self.num_timesteps):
+        for i in tqdm(reversed(range(0, self.num_timesteps)), desc='Restoring image', total=self.num_timesteps):
             t = torch.full((b,), i, device=y_cond.device, dtype=torch.long)
             y_t = self.p_sample(y_t, t, y_cond=y_cond)
-            if mask is not None:
+            if (mask is not None) and (not self.mask_for_loss_only):
                 y_t = y_0*(1.-mask) + mask*y_t
             if i % sample_inter == 0:
                 ret_arr = torch.cat([ret_arr, y_t], dim=0)
@@ -115,12 +116,18 @@ class Network(BaseNetwork):
         y_noisy = self.q_sample(
             y_0=y_0, sample_gammas=sample_gammas.view(-1, 1, 1, 1), noise=noise)
 
-        if mask is not None:
-            noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy*mask+(1.-mask)*y_0], dim=1), sample_gammas)
-            loss = self.loss_fn(mask*noise, mask*noise_hat)
-        else:
+        if (mask is None) or self.mask_for_loss_only:
+            # Don't use mask in denoising process
             noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy], dim=1), sample_gammas)
+        else:
+            noise_hat = self.denoise_fn(torch.cat([y_cond, y_noisy*mask+(1.-mask)*y_0], dim=1), sample_gammas)
+        
+        if mask is None:
             loss = self.loss_fn(noise, noise_hat)
+        else:
+            # Only compute proper loss for pixels where mask is 1
+            loss = self.loss_fn(mask*noise, mask*noise_hat)
+        
         return loss
 
 
