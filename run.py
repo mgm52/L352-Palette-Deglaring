@@ -120,7 +120,20 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.wandb_sweep:
+    args.wandb_run = True
+
+    if args.wandb_run:
+        wandb.init(project='PaletteDeglare-LongRuns')
+        wcfg = wandb.config
+        #wcfg.update(args)
+        opt = Praser.parse(args)
+        wcfg.update(opt)
+        try:
+            main(opt)
+        except Exception as e:
+            raise Exception("Error in main_with_wandb: {}, stack trace: {}".format(e, traceback.format_exc()))
+        
+    elif args.wandb_sweep:
         sweep_configuration = {
             'method': 'bayes',
             'name': 'sweep',
