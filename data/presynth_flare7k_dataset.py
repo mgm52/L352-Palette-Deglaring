@@ -42,7 +42,7 @@ def luminance_mask(img, gamma):
     return flare_mask
 
 class Flare_Image_Loader_Presynth(data.Dataset):
-    def __init__(self, image_path, mask_high_on_lsource=False, mask_type="luminance", mask_gamma=1.0, randomness=True):
+    def __init__(self, image_path, mask_high_on_lsource=False, mask_type="luminance", mask_gamma=1.0, randomness=True, gt_is_flare_diff=False):
         gt_dir = os.path.join(image_path, 'gt')
         flare_dir = os.path.join(image_path, 'flare')
         flare_added_dir = os.path.join(image_path, 'flare_added')
@@ -69,6 +69,7 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         self.mask_gamma=mask_gamma
 
         self.randomness = randomness
+        self.gt_is_flare_diff = gt_is_flare_diff
 
         print("Base images loaded, len:", len(self.data_list))
 
@@ -94,12 +95,22 @@ class Flare_Image_Loader_Presynth(data.Dataset):
             flare_img = all_img[3:6,:,:]
             gt_img = all_img[6:9,:,:]
 
-        return_dict = {
-			'gt_image': gt_img,
-			'flare': flare_img,
-			'cond_image': flare_added_img,
-			'path': os.path.basename(flare_added_path),
-		}
+        if self.gt_is_flare_diff:
+            flare_diff = flare_added_img - gt_img
+            return_dict = {
+                'gt_image': flare_diff,
+                'flare': flare_img,
+                'cond_image': flare_added_img,
+                'path': os.path.basename(flare_added_path),
+                'base_image': gt_img
+            }
+        else:
+            return_dict = {
+                'gt_image': gt_img,
+                'flare': flare_img,
+                'cond_image': flare_added_img,
+                'path': os.path.basename(flare_added_path),
+            }
 
         ttimer.start("computing mask") ##
         if self.mask_type=="luminance":

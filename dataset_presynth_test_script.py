@@ -14,7 +14,9 @@ if __name__ == "__main__":
         "datasets/presynth_flare7k_64",
         mask_high_on_lsource=False,
         mask_type="luminance",
-        mask_gamma=10.0)
+        mask_gamma=10.0,
+        randomness=True,
+        gt_is_flare_diff=True)
 
     epoch = 2
     while True:

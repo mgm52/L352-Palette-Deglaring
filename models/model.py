@@ -84,6 +84,10 @@ class Palette(BaseModel):
             dict.update({
                 'output': (self.output.detach()[:].float().cpu()+1)/2
             })
+            dict.update({
+                'subtraction_pre': ((self.cond_image - self.output).detach()[:].float().cpu()+1)/2,
+                'subtraction_post': dict['cond_image'] - dict['output']
+            })
         return dict
 
     def save_current_results(self):
@@ -186,6 +190,8 @@ class Palette(BaseModel):
                 for key, value in self.get_current_visuals(phase='val').items():
                     if wandb.run is not None: wandb.log({key: [wandb.Image(value)]}, commit=False)
                     self.writer.add_images(key, value)
+
+                #if wandb.run is not None: wandb.log({"subtraction": [wandb.Image(value)]}, commit=False)
                 self.writer.save_images(self.save_current_results())
 
         return self.val_metrics.result()
