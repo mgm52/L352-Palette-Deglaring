@@ -99,6 +99,8 @@ def main_with_wandb():
         opt['train']['n_epoch'] = 5
         opt['train']['save_checkpoint_epoch'] = 999 # save ssd space
 
+        opt['model']['which_model']['args']['quiet'] = True
+
         try:
             main(opt)
         except Exception as e:
@@ -112,12 +114,13 @@ if __name__ == '__main__':
     parser.add_argument('-gpu', '--gpu_ids', type=str, default=None)
     parser.add_argument('-sid', '--sweep_id', type=str, default=None)
     parser.add_argument('-d', '--debug', action='store_true')
-    parser.add_argument('-w', '--wandb', action='store_true')
+    parser.add_argument('-ws', '--wandb_sweep', action='store_true')
+    parser.add_argument('-wr', '--wandb_run', action='store_true')
     parser.add_argument('-P', '--port', default='21012', type=str)
 
     args = parser.parse_args()
 
-    if args.wandb:
+    if args.wandb_sweep:
         sweep_configuration = {
             'method': 'bayes',
             'name': 'sweep',
@@ -135,7 +138,7 @@ if __name__ == '__main__':
                 'unet_num_head_channels': {'values': [8, 16, 32, 64]},
                 'unet_res_blocks': {'values': [1, 2, 3]},
                 'unet_dropout': {'values': [0.1, 0.2]},
-                'unet_groupnorm': {'values': [True, False]},
+                'unet_groupnorm': {'values': [False]},          # <- Keeping groupnorm off due to consistently bad results
                 'beta_schedule': {'values': ["linear", "quad"]}
             }
         }

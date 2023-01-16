@@ -1,11 +1,12 @@
 torch>=1.6
 torchvision
+scikit-build
 numpy
 pandas
 tqdm
 tensorboardX>=1.14
 scipy 
-opencv-python
 clean-fid
-basicsr
 requests
+wandb
+matplotlib

@@ -19,7 +19,7 @@ class EMA():
         return old * self.beta + (1 - self.beta) * new
 
 class Palette(BaseModel):
-    def __init__(self, networks, losses, sample_num, task, optimizers, mask_on_metrics, ema_scheduler=None, **kwargs):
+    def __init__(self, networks, losses, sample_num, task, optimizers, mask_on_metrics, ema_scheduler=None, quiet=False, **kwargs):
         ''' must to init BaseModel with kwargs '''
         super(Palette, self).__init__(**kwargs)
 
@@ -50,6 +50,8 @@ class Palette(BaseModel):
         else:
             self.netG.set_loss(self.loss_fn)
             self.netG.set_new_noise_schedule(phase=self.phase)
+        
+        self.quiet = quiet
 
         ''' can rewrite in inherited class for more informations logging '''
         self.train_metrics = LogTracker(*[m.__name__ for m in losses], phase='train')
@@ -117,7 +119,7 @@ class Palette(BaseModel):
         #ts_total = []
         #t_next_data = time.time() ##
         #t_total = time.time() ##
-        for train_data in tqdm.tqdm(self.phase_loader, desc='Training'):
+        for train_data in tqdm.tqdm(self.phase_loader, desc='Training', disable=self.quiet):
             #ts_next_data.append(time.time() - t_next_data) ##
 
             self.set_input(train_data)

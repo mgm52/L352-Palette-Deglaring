@@ -11,12 +11,6 @@ import random
 import time
 
 from scipy import ndimage
-from skimage import morphology
-from skimage.measure import label
-from skimage.filters import rank
-from skimage.morphology import disk
-from skimage import color
-from skimage.measure import regionprops
 import torchvision.transforms.functional as TF
 from torch.distributions import Normal
 import torch
@@ -24,7 +18,6 @@ import numpy as np
 import torch
 #from basicsr.utils.registry import DATASET_REGISTRY
 import matplotlib.pyplot as plt
-import cv2
 
 from data.util.timing import TimeTester
 
@@ -49,7 +42,7 @@ def luminance_mask(img, gamma):
     return flare_mask
 
 class Flare_Image_Loader_Presynth(data.Dataset):
-    def __init__(self, image_path, mask_high_on_lsource=False, mask_type="luminance", mask_gamma=1.0):
+    def __init__(self, image_path, mask_high_on_lsource=False, mask_type="luminance", mask_gamma=1.0, randomness=True):
         gt_dir = os.path.join(image_path, 'gt')
         flare_dir = os.path.join(image_path, 'flare')
         flare_added_dir = os.path.join(image_path, 'flare_added')
@@ -62,6 +55,10 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         self.data_list=[]
         [self.data_list.extend(glob.glob(flare_added_dir + '/*.' + e)) for e in self.ext]
 
+        self.gt_list = sorted(self.gt_list)
+        self.flare_list = sorted(self.flare_list)
+        self.data_list = sorted(self.data_list)
+
         self.transform_img = transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
@@ -70,6 +67,8 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         self.mask_high_on_lsource=mask_high_on_lsource
         self.mask_type=mask_type
         self.mask_gamma=mask_gamma
+
+        self.randomness = randomness
 
         print("Base images loaded, len:", len(self.data_list))
 
@@ -87,12 +86,13 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         flare_img = to_tensor(Image.open(flare_path).convert('RGB'))
         gt_img = to_tensor(Image.open(gt_path).convert('RGB'))
         
-        all_img = torch.cat((flare_added_img,flare_img,gt_img),0)
-        all_img = self.transform_img(all_img)
+        if self.randomness:
+            all_img = torch.cat((flare_added_img,flare_img,gt_img),0)
+            all_img = self.transform_img(all_img)
 
-        flare_added_img = all_img[0:3,:,:]
-        flare_img = all_img[3:6,:,:]
-        gt_img = all_img[6:9,:,:]
+            flare_added_img = all_img[0:3,:,:]
+            flare_img = all_img[3:6,:,:]
+            gt_img = all_img[6:9,:,:]
 
         return_dict = {
 			'gt_image': gt_img,
