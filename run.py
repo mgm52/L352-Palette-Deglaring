@@ -117,6 +117,9 @@ if __name__ == '__main__':
     parser.add_argument('-ws', '--wandb_sweep', action='store_true')
     parser.add_argument('-wr', '--wandb_run', action='store_true')
     parser.add_argument('-P', '--port', default='21012', type=str)
+    parser.add_argument('-bs', '--batchsize', type=int, default=None)
+    parser.add_argument('-lr', '--learningrate', type=str, default=None)
+    parser.add_argument('-sub', '--forcesub', action='store_true')
 
     args = parser.parse_args()
 
@@ -127,6 +130,15 @@ if __name__ == '__main__':
         wcfg = wandb.config
         #wcfg.update(args)
         opt = Praser.parse(args)
+        if args.batchsize is not None:
+            opt['datasets']['train']['dataloader']['args']['batch_size'] = args.batchsize
+            print(f"Setting batchsize to {args.batchsize}")
+        if args.learningrate is not None:
+            opt['model']['which_model']['args']['optimizers'][0]['lr'] = float(args.learningrate)
+            print(f"Setting learningrate to {args.learningrate}")
+        if args.forcesub:
+            opt['datasets']['train']['which_dataset']['args']['gt_is_flare_diff'] = True
+            print(f"Setting gt_is_flare_diff to True")
         wcfg.update(opt)
         try:
             main(opt)
