@@ -108,6 +108,8 @@ def main_with_wandb():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-r', '--resume', type=str, default=None)
+    parser.add_argument('-rr', '--runresume', type=str, default=None)
     parser.add_argument('-c', '--config', type=str, default='config/glareremoval.json', help='JSON file for configuration')
     parser.add_argument('-p', '--phase', type=str, choices=['train','test'], help='Run train or test', default='train')
     parser.add_argument('-b', '--batch', type=int, default=None, help='Batch size in every gpu')
@@ -117,17 +119,37 @@ if __name__ == '__main__':
     parser.add_argument('-ws', '--wandb_sweep', action='store_true')
     parser.add_argument('-wr', '--wandb_run', action='store_true')
     parser.add_argument('-P', '--port', default='21012', type=str)
+    parser.add_argument('-bs', '--batchsize', type=int, default=None)
+    parser.add_argument('-lr', '--learningrate', type=str, default=None)
+    parser.add_argument('-sub', '--forcesub', action='store_true')
 
     args = parser.parse_args()
 
     args.wandb_run = True
 
     if args.wandb_run:
-        wandb.init(project='PaletteDeglare-LongRuns')
+        if args.runresume:
+            wandb.init(project='PaletteDeglare-LongRuns', id=args.runresume, resume="must")
+            print(f"Successfully resumed run {args.runresume}")
+        else:
+            wandb.init(project='PaletteDeglare-LongRuns')
         wcfg = wandb.config
         #wcfg.update(args)
         opt = Praser.parse(args)
-        wcfg.update(opt)
+        if args.batchsize is not None:
+            opt['datasets']['train']['dataloader']['args']['batch_size'] = args.batchsize
+            print(f"Setting batchsize to {args.batchsize}")
+        if args.learningrate is not None:
+            opt['model']['which_model']['args']['optimizers'][0]['lr'] = float(args.learningrate)
+            print(f"Setting learningrate to {args.learningrate}")
+        if args.forcesub:
+            opt['datasets']['train']['which_dataset']['args']['gt_is_flare_diff'] = True
+            print(f"Setting gt_is_flare_diff to True")
+        if args.resume:
+            opt['path']['resume_state'] = args.resume
+            print(f"Going to resume from checkpoint {args.resume}")
+
+        wcfg.update(opt, allow_val_change=True)
         try:
             main(opt)
         except Exception as e:
