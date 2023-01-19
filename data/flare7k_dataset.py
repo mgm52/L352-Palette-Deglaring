@@ -124,19 +124,22 @@ class ColourBias(torch.nn.Module):
             img = img.permute(1, 2, 0)
             img = img.cpu().numpy()
             hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+
             [bias_low, bias_high] = random.choice(self.biases)
             bias = random.uniform(bias_low, bias_high)
             #print(f"Setting hue bias to {bias}")
             hsv[:, :, 0] = bias * 0.99 + hsv[:, :, 0] * 0.01
+            
             img = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
             img = torch.from_numpy(img).permute(2, 0, 1)
         return img
 
 class Flare_Image_Loader(data.Dataset):
-    def __init__(self, image_path ,transform_base,transform_flare,mask_type=None,mask_high_on_lsource=True,placement_mode="random"):
+    def __init__(self, bg_path, flare_path, lsource_path, transform_base,transform_flare,mask_type=None,mask_high_on_lsource=True,placement_mode="random", num_sources=[1, 0]):
         self.ext = ['png','jpeg','jpg','bmp','tif']
         self.data_list=[]
-        [self.data_list.extend(glob.glob(image_path + '/*.' + e)) for e in self.ext]
+        [self.data_list.extend(glob.glob(bg_path + '/*.' + e)) for e in self.ext]
+        self.data_list.sort()
         self.flare_dict={}
         self.flare_list=[]
         self.flare_name_list=[]
@@ -151,13 +154,13 @@ class Flare_Image_Loader(data.Dataset):
         self.reflective_list=[]
         self.reflective_name_list=[]
 
-        self.colour_bias = ColourBias([[15, 60], [200, 245]], 0.66)
+        self.colour_bias = ColourBias([[15, 60], [200, 245]], 0.75)
 
         self.mask_type=mask_type #It is a str which may be None,"luminance" or "color"
         self.mask_high_on_lsource=mask_high_on_lsource
         self.img_size=transform_base['img_size']
         self.transform_base=transforms.Compose(
-            ([transforms.Resize(transform_base['pre_crop_size'])] if (transform_base is not None) else []) + [
+            ([transforms.Resize(transform_base['pre_crop_size'])] if (transform_base['pre_crop_size'] is not None) else []) + [
             transforms.RandomCrop((self.img_size,self.img_size),pad_if_needed=True,padding_mode='reflect'),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip()
@@ -169,7 +172,11 @@ class Flare_Image_Loader(data.Dataset):
                 translate=(0,0),#(transform_flare['translate']/1440,transform_flare['translate']/1440),    
                 shear=(-transform_flare['shear'],transform_flare['shear']))                                    # default: (-20, 20)                    
 
+        self.num_sources = num_sources
+
         print("Base images loaded, len:", len(self.data_list))
+
+        self.load_scattering_flare("all_flares", flare_path, lsource_path)
 
     def __getitem__(self, index):
         ttimer = TimeTester("Flare_Image_Loader __getitem__", disabled=True) ##
@@ -186,7 +193,7 @@ class Flare_Image_Loader(data.Dataset):
         to_tensor=transforms.ToTensor()
         adjust_gamma=RandomGammaCorrection(gamma)
         adjust_gamma_reverse=RandomGammaCorrection(1/gamma)
-        color_jitter=transforms.ColorJitter(brightness=(0.8,3),hue=0.0, saturation=(1, 1))#(0.25, 0.8))
+        color_jitter=transforms.ColorJitter(brightness=(0.8,3),hue=0.0, saturation=(0.5, 1))#(0.25, 0.8))
         if self.transform_base is not None:
             base_img=to_tensor(base_img)
             base_img=adjust_gamma(base_img)
@@ -198,88 +205,108 @@ class Flare_Image_Loader(data.Dataset):
         sigma_chi=0.01*np.random.chisquare(df=1)
         base_img=Normal(base_img,sigma_chi).sample()
         gain=np.random.uniform(1,1.2)
-        flare_DC_offset=np.random.uniform(-0.02,0.02)
         base_img=gain*base_img
         base_img=torch.clamp(base_img,min=0,max=1)
         ttimer.end_prev() ##
 
-        #t_lpos_start = time.process_time()
-        if self.placement_mode == "centre":
-            light_pos=[0,0]
-        else:
-            if self.placement_mode == "light_pos":
-                light_pos=plot_light_pos(base_img,0.97**gamma)
-            if (self.placement_mode == "random") or (light_pos is None):
-                # Set random light pos
-                light_pos=[np.random.randint(0,base_img.shape[1]),np.random.randint(0,base_img.shape[1])]
-            light_pos=[light_pos[0]-base_img.shape[1]/2,light_pos[1]-base_img.shape[1]/2]
-        #t_lpos_stop = time.process_time() - t_lpos_start
 
-        #load flare image
-        if self.using_lsources:
-            (flare_path, lsource_path)=random.choice(self.flare_and_lsource_list)
-            ttimer.start("loading lsource and flare image") ##
-            lsource_img=to_tensor(Image.open(lsource_path).convert('RGB'))
-            flare_img=to_tensor(Image.open(flare_path).convert('RGB'))
+        combined_flare_img = torch.zeros_like(base_img)
+        combined_lsource_img = torch.zeros_like(base_img)
+
+        total_sources = np.random.normal(self.num_sources[0], self.num_sources[1])
+        total_sources = int(total_sources)
+        total_sources = max(1, total_sources)
+        print(f"total_sources: {total_sources}")
+        for fi in range(total_sources):
+
+            #t_lpos_start = time.process_time()
+            if self.placement_mode == "centre":
+                light_pos=[0,0]
+            else:
+                if self.placement_mode == "light_pos":
+                    light_pos=plot_light_pos(base_img,0.97**gamma)
+                if (self.placement_mode == "random") or (light_pos is None):
+                    # Set random light pos
+                    light_pos=[np.random.randint(0,base_img.shape[1]),np.random.randint(0,base_img.shape[1])]
+                light_pos=[light_pos[0]-base_img.shape[1]/2,light_pos[1]-base_img.shape[1]/2]
+            #t_lpos_stop = time.process_time() - t_lpos_start
+
+            #load flare image
+            if self.using_lsources:
+                (flare_path, lsource_path)=random.choice(self.flare_and_lsource_list)
+                ttimer.start("loading lsource and flare image") ##
+                lsource_img=to_tensor(Image.open(lsource_path).convert('RGB'))
+                #plt.imshow(lsource_img.permute(1,2,0))
+                #plt.show()
+                flare_img=to_tensor(Image.open(flare_path).convert('RGB'))
+                ttimer.end_prev() ##
+                flare_and_lsource = torch.cat((flare_img,lsource_img),0)
+            else:
+                flare_path=random.choice(self.flare_list)
+                ttimer.start("loading flare image") ##
+                flare_img=to_tensor(Image.open(flare_path).convert('RGB'))
+                ttimer.end_prev() ##
+                flare_and_lsource = flare_img
+            if self.reflective_flag:
+                reflective_path=random.choice(self.reflective_list)
+                reflective_img =Image.open(reflective_path).convert('RGB')
+
+            ttimer.start("flare and lsource gamma correction") ##
+            # this is really costly!
+            flare_and_lsource=adjust_gamma(flare_and_lsource)
             ttimer.end_prev() ##
-            flare_and_lsource = torch.cat((flare_img,lsource_img),0)
-        else:
-            flare_path=random.choice(self.flare_list)
-            ttimer.start("loading flare image") ##
-            flare_img=to_tensor(Image.open(flare_path).convert('RGB'))
+            
+            if self.reflective_flag:
+                reflective_img=to_tensor(reflective_img)
+                reflective_img=adjust_gamma(reflective_img)
+                flare_and_lsource[0:3,:,:] = torch.clamp(flare_and_lsource[0:3,:,:]+reflective_img,min=0,max=1)
+
+            ttimer.start("removing background") ##
+            flare_and_lsource[0:3,:,:]=remove_background(flare_and_lsource[0:3,:,:])
             ttimer.end_prev() ##
-            flare_and_lsource = flare_img
-        if self.reflective_flag:
-            reflective_path=random.choice(self.reflective_list)
-            reflective_img =Image.open(reflective_path).convert('RGB')
 
-        ttimer.start("flare and lsource gamma correction") ##
-        # this is really costly!
-        flare_and_lsource=adjust_gamma(flare_and_lsource)
-        ttimer.end_prev() ##
-        
-        if self.reflective_flag:
-            reflective_img=to_tensor(reflective_img)
-            reflective_img=adjust_gamma(reflective_img)
-            flare_and_lsource[0:3,:,:] = torch.clamp(flare_and_lsource[0:3,:,:]+reflective_img,min=0,max=1)
+            ttimer.start("transforming flare") ##
+            # this whole transform is really costly!
+            transform_flare=transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                self.transform_flare_affine, # <-- this is really costly!
+                TranslationTransform(light_pos),
+                transforms.CenterCrop((self.img_size,self.img_size)),
+            ])
+            flare_and_lsource = transform_flare(flare_and_lsource)
+            ttimer.end_prev() ##
 
-        ttimer.start("removing background") ##
-        flare_and_lsource[0:3,:,:]=remove_background(flare_and_lsource[0:3,:,:])
-        ttimer.end_prev() ##
+            ttimer.start("dividing flare and lsource") ##
+            if self.using_lsources:
+                flare_img = flare_and_lsource[0:3,:,:]
+                lsource_img = flare_and_lsource[3:6,:,:]
+            ttimer.end_prev() ##
 
-        ttimer.start("transforming flare") ##
-        # this whole transform is really costly!
-        transform_flare=transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
-            self.transform_flare_affine, # <-- this is really costly!
-            TranslationTransform(light_pos),
-            transforms.CenterCrop((self.img_size,self.img_size)),
-        ])
-        flare_and_lsource = transform_flare(flare_and_lsource)
-        ttimer.end_prev() ##
+            #change color
+            ttimer.start("changing color") ##
+            flare_img=color_jitter(flare_img)
+            flare_img=self.colour_bias(flare_img)
+            ttimer.end_prev() ##
 
-        ttimer.start("dividing flare and lsource") ##
-        if self.using_lsources:
-            flare_img = flare_and_lsource[0:3,:,:]
-            lsource_img = flare_and_lsource[3:6,:,:]
-        ttimer.end_prev() ##
+            #flare blur
+            ttimer.start("blurring flare") ##
+            blur_transform=transforms.GaussianBlur(21,sigma=(0.1,3.0))
+            flare_img=blur_transform(flare_img)
+            flare_DC_offset=np.random.uniform(-0.02,0.02)
+            flare_img=flare_img+flare_DC_offset
+            flare_img=torch.clamp(flare_img,min=0,max=1)
+            ttimer.end_prev() ##
 
-        #change color
-        ttimer.start("changing color") ##
-        flare_img=color_jitter(flare_img)
-        flare_img=self.colour_bias(flare_img)
-        ttimer.end_prev() ##
+            #merge image  
+            combined_flare_img = combined_flare_img + flare_img
+            combined_lsource_img = combined_lsource_img + lsource_img
+            #plt.imshow(combined_lsource_img.permute(1,2,0))
+            #plt.show()
 
-        #flare blur
-        ttimer.start("blurring flare") ##
-        blur_transform=transforms.GaussianBlur(21,sigma=(0.1,3.0))
-        flare_img=blur_transform(flare_img)
-        flare_img=flare_img+flare_DC_offset
-        flare_img=torch.clamp(flare_img,min=0,max=1)
-        ttimer.end_prev() ##
+        flare_img = combined_flare_img
+        lsource_img = combined_lsource_img
 
-        #merge image    
         merge_img=flare_img+base_img
         merge_img=torch.clamp(merge_img,min=0,max=1)
 
@@ -298,10 +325,10 @@ class Flare_Image_Loader(data.Dataset):
 
         ttimer.start("computing mask") ##
         if self.mask_type=="luminance":
-            flare_mask=luminance_mask(flare_img, gamma)
+            flare_mask=luminance_mask(flare_img, gamma*10)
 
             if self.using_lsources:
-                lsource_mask=luminance_mask(lsource_img, gamma)
+                lsource_mask=luminance_mask(lsource_img, gamma*10)
                 return_dict['lsource_mask']=lsource_mask
                 return_dict['flare_mask']=flare_mask
                 return_dict['mask']=torch.clamp(flare_mask+lsource_mask, min=0, max=1)
@@ -328,6 +355,7 @@ class Flare_Image_Loader(data.Dataset):
     def load_scattering_flare(self,flare_name,flare_path,lsource_path=None):
         flare_list=[]
         [flare_list.extend(glob.glob(flare_path + '/*.' + e)) for e in self.ext]
+        flare_list.sort()
         self.flare_name_list.append(flare_name)
         self.flare_dict[flare_name]=flare_list
         self.flare_list.extend(flare_list)
@@ -337,12 +365,14 @@ class Flare_Image_Loader(data.Dataset):
             self.using_lsources = True
             lsource_list=[]
             [lsource_list.extend(glob.glob(lsource_path + '/*.' + e)) for e in self.ext]
+            lsource_list.sort()
             self.lsource_list.extend(lsource_list)
             len_lsource_list=len(lsource_list)
 
             self.flare_and_lsource_list.extend(list(itertools.product(flare_list,lsource_list)))
         else:
             self.using_lsources = False
+
 
         if len_flare_list == 0 or (self.using_lsources and len_lsource_list == 0):
             print("ERROR: scattering flare images are not loaded properly")
@@ -363,38 +393,3 @@ class Flare_Image_Loader(data.Dataset):
         else:
             print("Reflective Flare Image:",reflective_name, " is loaded successfully with examples", str(len_reflective_list))
         print("Now we have",len(self.reflective_list),'refelctive flare images')
-
-#@DATASET_REGISTRY.register()
-class Flare_Pair_Loader(Flare_Image_Loader):
-    def __init__(self, opt):
-        Flare_Image_Loader.__init__(self,opt['bg_path'],opt['transform_base'],opt['transform_flare'],opt['mask_type'],opt['mask_high_on_lsource'],opt['placement_mode'])
-        self.load_scattering_flare("all_flares",opt['flare_path'],opt['lsource_path'])
-        #reflective_dict=opt['reflective_dict']
-        #if len(scattering_dict) !=0:
-        #    for key in scattering_dict.keys():
-                
-        #if len(reflective_dict) !=0:
-        #    for key in reflective_dict.keys():
-        #        self.load_reflective_flare(key,reflective_dict[key])
-
-#@DATASET_REGISTRY.register()
-class Image_Pair_Loader(data.Dataset):
-    def __init__(self, opt):
-        super(Image_Pair_Loader, self).__init__()
-        self.opt = opt
-        self.gt_folder, self.lq_folder = opt['dataroot_gt'], opt['dataroot_lq']
-        self.paths = glod_from_folder([self.lq_folder, self.gt_folder], ['cond_image', 'gt_image'])
-        self.to_tensor = transforms.ToTensor()
-        self.gt_size = opt['gt_size']
-        self.transform = transforms.Compose([transforms.Resize(self.gt_size), transforms.CenterCrop(self.gt_size), transforms.ToTensor()])
-
-    def __getitem__(self, index):
-        gt_path = self.paths['gt_image'][index]
-        cond_image_path = self.paths['cond_image'][index]
-        img_cond_image=self.transform(Image.open(cond_image_path).convert('RGB'))
-        img_gt=self.transform(Image.open(gt_path).convert('RGB'))
-
-        return {'cond_image': img_cond_image, 'gt_image': img_gt}
-
-    def __len__(self):
-        return len(self.paths)

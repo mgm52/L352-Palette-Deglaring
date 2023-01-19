@@ -125,7 +125,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.wandb_run = True
+    #args.wandb_run = True
 
     if args.wandb_run:
         if args.runresume:

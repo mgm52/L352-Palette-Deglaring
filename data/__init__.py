@@ -125,6 +125,11 @@ def define_dataset(logger, opt):
             data_len -= valid_len
             phase_dataset, val_dataset = subset_split(dataset=phase_dataset, lengths=[data_len, valid_len], generator=Generator().manual_seed(opt['seed']))
         
+            # if val_dataset has enable_val_mode() function, call it to enable validation mode
+            if hasattr(val_dataset, 'enable_val_mode'):
+                print("Calling enable_val_mode!")
+                val_dataset.enable_val_mode()
+
         logger.info('Dataset for {} has {} samples.'.format(opt['phase'], data_len))
         if opt['phase'] == 'train':
             logger.info('Dataset for {} has {} samples.'.format('val', valid_len))   

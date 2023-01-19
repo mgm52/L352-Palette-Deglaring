@@ -71,6 +71,8 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         self.randomness = randomness
         self.gt_is_flare_diff = gt_is_flare_diff
 
+        self.val_mode = False
+
         print("Base images loaded, len:", len(self.data_list))
 
     def __getitem__(self, index):
@@ -126,3 +128,7 @@ class Flare_Image_Loader_Presynth(data.Dataset):
 
     def __len__(self):
         return len(self.data_list)
+    
+    def enable_val_mode(self):
+        self.val_mode = True
+        self.randomness = False
