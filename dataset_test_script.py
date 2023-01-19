@@ -1,4 +1,5 @@
-from data.flare7k_dataset import Flare_Pair_Loader
+import argparse
+from data.flare7k_dataset import Flare_Image_Loader
 import os
 import glob
 import code
@@ -9,9 +10,15 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
 
-    IMG_SIZE = 64
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-pre', '--prefix', type=str, default="0")
+    args = parser.parse_args()
 
-    SAVE = False
+    prefix = args.prefix
+
+    IMG_SIZE = 256
+
+    SAVE = True
     OVERWRITE = False
     save_dir = f"datasets/presynth_flare7k_{IMG_SIZE}"
 
@@ -25,24 +32,26 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(save_dir, "gt"))
             os.makedirs(os.path.join(save_dir, "flare_added"))
             os.makedirs(os.path.join(save_dir, "flare"))
+            os.makedirs(os.path.join(save_dir, "mask"))
 
-    ds = Flare_Pair_Loader({
-        "bg_path":          "datasets/Flickr24K/raw",
-        "flare_path":       "datasets/flare/Flare",
-        "lsource_path":     "datasets/flare/Annotations/Light_Source",
-        "transform_base":   {
-                                "pre_crop_size": IMG_SIZE,
+    ds = Flare_Image_Loader(
+        bg_path=          "datasets/Flickr24K/raw",
+        flare_path=       "datasets/flare/Flare",
+        lsource_path=     "datasets/flare/Annotations/Light_Source",
+        transform_base=   {
+                                "pre_crop_size": None,
                                 "img_size": IMG_SIZE,
                             },
-        "transform_flare":  {
-                                "scale_min": 0.05,   # default 0.8
-                                "scale_max": 0.2,   # default 1.5
+        transform_flare=  {
+                                "scale_min": 0.03 * IMG_SIZE/64,   # default 0.8
+                                "scale_max": 0.15 * IMG_SIZE/64,   # default 1.5
                                 "shear": 20         # chooses a random angle (deg) between -shear and +shear
                             },
-        "mask_type":        "luminance",
-        "mask_high_on_lsource": False,
-        "placement_mode":   "random"                # "light_pos", "random", or "centre"
-    })
+        mask_type=        "luminance",
+        mask_high_on_lsource= False,
+        placement_mode=   "random",                # "light_pos", "random", or "centre"
+        num_sources= [1.5, 1.5]
+    )
 
     epoch = 2
     while True:
@@ -55,9 +64,10 @@ if __name__ == "__main__":
 
             if SAVE:
                 # Save the images to save_dir
-                save_image(ex1["gt_image"], os.path.join(save_dir, f"gt/gt_img_{i}_{epoch}.png")) #<-- todo: consider changing img_i to i_i*epoch or something
-                save_image(ex1["cond_image"], os.path.join(save_dir, f"flare_added/flare_added_img_{i}_{epoch}.png"))
-                save_image(ex1["flare"], os.path.join(save_dir, f"flare/flare_img_{i}_{epoch}.png"))
+                save_image(ex1["gt_image"], os.path.join(save_dir, f"gt/gt_img_{prefix}_{epoch}_{i}.png"))
+                save_image(ex1["cond_image"], os.path.join(save_dir, f"flare_added/flare_added_img_{prefix}_{epoch}_{i}.png"))
+                save_image(ex1["flare"], os.path.join(save_dir, f"flare/flare_img_{prefix}_{epoch}_{i}.png"))
+                save_image(ex1["mask"], os.path.join(save_dir, f"mask/mask_img_{prefix}_{epoch}_{i}.png"))
             else:
                 imgs = ["gt_image", "flare", "cond_image"]
                 optionals = ["lsource", "mask", "lsource_mask", "flare_mask"]

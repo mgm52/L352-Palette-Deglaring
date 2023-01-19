@@ -85,8 +85,8 @@ class Palette(BaseModel):
                 'output': (self.output.detach()[:].float().cpu()+1)/2
             })
             dict.update({
-                'subtraction_pre': ((self.cond_image - self.output).detach()[:].float().cpu()+1)/2,
-                'subtraction_post': dict['cond_image'] - dict['output']
+                'cond_minus_out': dict['cond_image'] - dict['output'],
+                'cond_minus_gt': dict['cond_image'] - dict['gt_image']
             })
         return dict
 

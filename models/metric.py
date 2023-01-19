@@ -15,6 +15,29 @@ def mae(input, target):
         output = loss(input, target)
     return output
 
+def mse(input, target):
+    with torch.no_grad():
+        loss = nn.MSELoss()
+        output = loss(input, target)
+    return output
+
+def psnr(input, target):
+    with torch.no_grad():
+        mse = nn.MSELoss()
+        output = 10 * torch.log10(1 / mse(input, target))
+    return output
+
+def psnr_y(input, target):
+    # Ensure shapes are 4D
+    if len(input.shape) == 3:
+        input = input.unsqueeze(0)
+    if len(target.shape) == 3:
+        target = target.unsqueeze(0)
+
+    # Convert input and target to Y channel of YCbCr
+    input_y = 0.299 * input[:, 0, :, :] + 0.587 * input[:, 1, :, :] + 0.114 * input[:, 2, :, :]
+    target_y = 0.299 * target[:, 0, :, :] + 0.587 * target[:, 1, :, :] + 0.114 * target[:, 2, :, :]
+    return psnr(input_y, target_y)
 
 def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     """Computes the inception score of the generated images imgs

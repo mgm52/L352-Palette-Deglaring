@@ -17,13 +17,23 @@
     "datasets": { // train or test
         "train": { 
             "which_dataset": {  // import designated dataset using arguments 
-                "name": ["data.presynth_flare7k_dataset", "Flare_Image_Loader_Presynth"], // import Dataset() class / function(not recommend) from data.dataset.py (default is [data.dataset.py])
-                "args":{ 
-                    "image_path": "datasets/presynth_flare7k_64",
-                    "mask_type": "luminance",
-                    "mask_high_on_lsource": false,
-                    "mask_gamma": 10.0 // higher == mask out more of lightsource
-                } 
+                "name": ["data.flare7k_dataset", "Flare_Pair_Loader"], // import Dataset() class / function(not recommend) from default file
+                "args":{ // TODO: differentiate test/train set somehow - perhaps by using an image folder here
+                    "opt":{ // TODO: <-- expand "opt"
+                        "bg_path":          "datasets/Flickr24K/raw",
+                        "flare_path":       "datasets/flare/Flare",
+                        "lsource_path":     "datasets/flare/Annotations/Light_Source",
+                        "transform_base":   {"img_size": 64, "pre_crop_size": 64},
+                        "transform_flare":  {
+                                                "scale_min": 0.05,   // default 0.8
+                                                "scale_max": 0.2,   // default 1.5
+                                                "shear": 20         // chooses a random angle (deg) between -shear and +shear
+                                            },
+                        "mask_type":        "luminance",
+                        "mask_high_on_lsource": false,
+                        "placement_mode":   "random"                // "light_pos", "random", or "centre"
+                    }
+                }
             },
             "dataloader":{
                 "unlimited_data": false, // if true, will not split
