@@ -8,27 +8,23 @@ import numpy as np
 from PIL import Image
 import glob
 import random
-import time
 
 from scipy import ndimage
-from skimage import morphology
-from skimage.measure import label
-from skimage.filters import rank
-from skimage.morphology import disk
-from skimage import color
-from skimage.measure import regionprops
 import torchvision.transforms.functional as TF
 from torch.distributions import Normal
 import torch
 import numpy as np
 import torch
 #from basicsr.utils.registry import DATASET_REGISTRY
-import matplotlib.pyplot as plt
-import cv2
+import colorsys
 
 from data.util.timing import TimeTester
 
 def plot_light_pos(input_img,threshold):
+    from skimage.measure import label
+    from skimage.morphology import disk
+    from skimage.measure import regionprops
+
     #input should be a three channel tensor with shape [C,H,W]
     #Out put the position (x,y) in int
     luminance=0.3*input_img[0]+0.59*input_img[1]+0.11*input_img[2]
@@ -123,14 +119,15 @@ class ColourBias(torch.nn.Module):
         if random.random() < self.chance:
             img = img.permute(1, 2, 0)
             img = img.cpu().numpy()
-            hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+
+            hsv = np.apply_along_axis(lambda p: colorsys.rgb_to_hsv(*p), 2, img)
 
             [bias_low, bias_high] = random.choice(self.biases)
             bias = random.uniform(bias_low, bias_high)
             #print(f"Setting hue bias to {bias}")
             hsv[:, :, 0] = bias * 0.99 + hsv[:, :, 0] * 0.01
             
-            img = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+            img = np.apply_along_axis(lambda p: colorsys.hsv_to_rgb(*p), 2, hsv)
             img = torch.from_numpy(img).permute(2, 0, 1)
         return img
 
@@ -216,7 +213,7 @@ class Flare_Image_Loader(data.Dataset):
         total_sources = np.random.normal(self.num_sources[0], self.num_sources[1])
         total_sources = int(total_sources)
         total_sources = max(1, total_sources)
-        print(f"total_sources: {total_sources}")
+        #print(f"total_sources: {total_sources}")
         for fi in range(total_sources):
 
             #t_lpos_start = time.process_time()

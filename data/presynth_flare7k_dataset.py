@@ -42,10 +42,11 @@ def luminance_mask(img, gamma):
     return flare_mask
 
 class Flare_Image_Loader_Presynth(data.Dataset):
-    def __init__(self, image_path, mask_high_on_lsource=False, mask_type="luminance", mask_gamma=1.0, randomness=True, gt_is_flare_diff=False):
+    def __init__(self, image_path, mask_high_on_lsource=False, mask_type="luminance", randomness=True, gt_is_flare_diff=False):
         gt_dir = os.path.join(image_path, 'gt')
         flare_dir = os.path.join(image_path, 'flare')
         flare_added_dir = os.path.join(image_path, 'flare_added')
+        mask_dir = os.path.join(image_path, 'mask')
         self.ext = ['png','jpeg','jpg','bmp','tif']
 
         self.gt_list=[]
@@ -54,6 +55,8 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         [self.flare_list.extend(glob.glob(flare_dir + '/*.' + e)) for e in self.ext]
         self.data_list=[]
         [self.data_list.extend(glob.glob(flare_added_dir + '/*.' + e)) for e in self.ext]
+        self.mask_list=[]
+        [self.mask_list.extend(glob.glob(mask_dir + '/*.' + e)) for e in self.ext]
 
         self.gt_list = sorted(self.gt_list)
         self.flare_list = sorted(self.flare_list)
@@ -66,7 +69,6 @@ class Flare_Image_Loader_Presynth(data.Dataset):
 
         self.mask_high_on_lsource=mask_high_on_lsource
         self.mask_type=mask_type
-        self.mask_gamma=mask_gamma
 
         self.randomness = randomness
         self.gt_is_flare_diff = gt_is_flare_diff
@@ -82,20 +84,23 @@ class Flare_Image_Loader_Presynth(data.Dataset):
         flare_added_path=self.data_list[index]
         flare_path=self.flare_list[index]
         gt_path=self.gt_list[index]
+        mask_path=self.mask_list[index]
 
         to_tensor=transforms.ToTensor()
 
         flare_added_img = to_tensor(Image.open(flare_added_path).convert('RGB'))
         flare_img = to_tensor(Image.open(flare_path).convert('RGB'))
         gt_img = to_tensor(Image.open(gt_path).convert('RGB'))
+        mask_img = to_tensor(Image.open(mask_path).convert('RGB'))
         
         if self.randomness:
-            all_img = torch.cat((flare_added_img,flare_img,gt_img),0)
+            all_img = torch.cat((flare_added_img,flare_img,gt_img,mask_img),0)
             all_img = self.transform_img(all_img)
 
             flare_added_img = all_img[0:3,:,:]
             flare_img = all_img[3:6,:,:]
             gt_img = all_img[6:9,:,:]
+            mask_img = all_img[9:12,:,:]
 
         if self.gt_is_flare_diff:
             flare_diff = flare_added_img - gt_img
@@ -104,7 +109,8 @@ class Flare_Image_Loader_Presynth(data.Dataset):
                 'flare': flare_img,
                 'cond_image': flare_added_img,
                 'path': os.path.basename(flare_added_path),
-                'base_image': gt_img
+                'base_image': gt_img,
+                'mask': mask_img,
             }
         else:
             return_dict = {
@@ -112,14 +118,15 @@ class Flare_Image_Loader_Presynth(data.Dataset):
                 'flare': flare_img,
                 'cond_image': flare_added_img,
                 'path': os.path.basename(flare_added_path),
+                'mask': mask_img,
             }
 
         ttimer.start("computing mask") ##
-        if self.mask_type=="luminance":
-            flare_mask=luminance_mask(flare_img, self.mask_gamma)
-            return_dict['mask']=flare_mask
+        #if self.mask_type=="luminance":
+        #    flare_mask=luminance_mask(flare_img, self.mask_gamma)
+        #    return_dict['mask']=flare_mask
         
-        if (return_dict['mask'] is not None) and not self.mask_high_on_lsource:
+        if (return_dict['mask'] is not None) and self.mask_high_on_lsource:
             return_dict['mask'] = 1. - return_dict['mask']
         ttimer.end_prev() ##
 

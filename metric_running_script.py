@@ -28,6 +28,8 @@ if __name__ == '__main__':
     psnr_y = met.psnr_y(input_img, target_img)
     mae = met.mae(input_img, target_img)
     mse = met.mse(input_img, target_img)
+    ssim = met.ssim(input_img, target_img)
+    ssim_y = met.ssim_y(input_img, target_img)
 
-    metrics = {"psnr": psnr, "psnr_y": psnr_y, "mae": mae, "mse": mse}
+    metrics = {"psnr": psnr, "psnr_y": psnr_y, "mae": mae, "mse": mse, "ssim": ssim, "ssim_y": ssim_y}
     print(metrics)

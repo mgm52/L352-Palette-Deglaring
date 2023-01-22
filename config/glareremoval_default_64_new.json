@@ -10,8 +10,8 @@
         "tb_logger": "tb_logger", // path of tensorboard logger
         "results": "results",
         "checkpoint": "checkpoint",
-        "resume_state": null //"experiments/debug_glareremoval_230117_040632/checkpoint/3" 
-        //"resume_state": null // ex: 100, loading .state  and .pth from given epoch and iteration
+        // "resume_state": "experiments/inpainting_places2_220413_143231/checkpoint/25" 
+        "resume_state": null // ex: 100, loading .state  and .pth from given epoch and iteration
     },
 
     "datasets": { // train or test
@@ -19,24 +19,23 @@
             "which_dataset": {  // import designated dataset using arguments 
                 "name": ["data.presynth_flare7k_dataset", "Flare_Image_Loader_Presynth"], // import Dataset() class / function(not recommend) from data.dataset.py (default is [data.dataset.py])
                 "args":{ 
-                    "image_path": "datasets/presynth_flare7k_64",
+                    "image_path": "datasets/presynth_flare7k_64_new",
                     "mask_type": "luminance",
-                    "mask_high_on_lsource": false,
-                    "mask_gamma": 10.0 // higher == mask out more of lightsource
+                    "mask_high_on_lsource": false
                 } 
             },
             "dataloader":{
                 "unlimited_data": false, // if true, will not split
-                "validation_split": 32, // percent or number. def 2  -> overrided by debug_split in debug mode
+                "validation_split": 2, // percent or number. def 2  -> overrided by debug_split in debug mode
                 "args":{ // arguments to initialize train_dataloader
-                    "batch_size": 32, // batch size in each gpu
+                    "batch_size": 4, // batch size in each gpu
                     "num_workers": 4,
                     "shuffle": true,
                     "pin_memory": true,
                     "drop_last": true
                 },
                 "val_args":{ // arguments to initialize valid_dataloader, will overwrite the parameters in train_dataloader
-                    "batch_size": 32, // batch size in each gpu. def 1
+                    "batch_size": 2, // batch size in each gpu. def 1
                     "num_workers": 4,
                     "shuffle": false,
                     "pin_memory": true,
@@ -66,7 +65,7 @@
             },
             "dataloader":{
                 "args":{
-                    "batch_size": 64,
+                    "batch_size": 8,
                     "num_workers": 4,
                     "pin_memory": true
                 }
@@ -89,7 +88,7 @@
                     { "lr": 5e-5, "weight_decay": 0}
                 ],
                 "mask_on_metrics": true,
-                "quiet": false
+                "quiet": true
             }
         },
         "which_networks": [ // import designated list of networks using arguments
@@ -116,8 +115,8 @@
                         "num_head_channels": 32,
                         "res_blocks": 2,
                         "dropout": 0.2,
-                        "image_size": 224,
-                        "groupnorm": false
+                        "image_size": 224, // <- actually has no effect
+                        "groupnorm": true
                     },
                     "beta_schedule": {
                         "train": {
@@ -149,9 +148,9 @@
     "train": { // arguments for basic training
         "n_epoch": 1e8, // max epochs, not limited now
         "n_iter": 1e8, // max interations
-        "val_epoch": 1, // valdation every specified number of epochs. def 5
-        "save_checkpoint_epoch": 1, // def 10
-        "log_iter": 32, // log every specified number of iterations. def 1e4
+        "val_epoch": 5, // valdation every specified number of epochs. def 5
+        "save_checkpoint_epoch": 5, // def 10
+        "log_iter": 64, // log every specified number of iterations. def 1e4
         "tensorboard" : true // tensorboardX enable
     },
     
