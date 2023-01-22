@@ -9,6 +9,8 @@ from torchvision.models.inception import inception_v3
 import numpy as np
 from scipy.stats import entropy
 
+from skimage.metrics import structural_similarity
+
 def mae(input, target):
     with torch.no_grad():
         loss = nn.L1Loss()
@@ -28,16 +30,32 @@ def psnr(input, target):
     return output
 
 def psnr_y(input, target):
-    # Ensure shapes are 4D
-    if len(input.shape) == 3:
-        input = input.unsqueeze(0)
-    if len(target.shape) == 3:
-        target = target.unsqueeze(0)
-
-    # Convert input and target to Y channel of YCbCr
-    input_y = 0.299 * input[:, 0, :, :] + 0.587 * input[:, 1, :, :] + 0.114 * input[:, 2, :, :]
-    target_y = 0.299 * target[:, 0, :, :] + 0.587 * target[:, 1, :, :] + 0.114 * target[:, 2, :, :]
+    input_y, target_y = to_y_channel(input), to_y_channel(target)
     return psnr(input_y, target_y)
+
+def ssim(input, target):
+    assert len(input.shape) in [2, 3] and len(target.shape) in [2, 3], f"Input must be a 3D tensor, but given {input.shape} and {target.shape}"
+
+    if input.shape[0] == 3:
+        input = input.permute(1, 2, 0)
+    if target.shape[0] == 3:
+        target = target.permute(1, 2, 0)
+
+    # Use structural_similarity to compute ssim
+    ssim = structural_similarity(input.numpy(), target.numpy(), multichannel=True)
+    return ssim
+
+def ssim_y(input, target):
+    # Convert input and target to Y channel of YCbCr
+    input_y, target_y = to_y_channel(input), to_y_channel(target)
+    return ssim(input_y, target_y)
+
+def to_y_channel(img):
+    if len(img.shape) == 3:
+        return 0.299 * img[0, :, :] + 0.587 * img[1, :, :] + 0.114 * img[2, :, :]
+    else:
+        return 0.299 * img[:, 0, :, :] + 0.587 * img[:, 1, :, :] + 0.114 * img[:, 2, :, :]
+
 
 def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     """Computes the inception score of the generated images imgs
