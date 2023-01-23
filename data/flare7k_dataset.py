@@ -87,13 +87,13 @@ def remove_background(image):
     image=torch.from_numpy(image)
     return image
 
-def glod_from_folder(folder_list, index_list):
+def glod_from_folder(folder_list, index_list, rev=False):
     ext = ['png','jpeg','jpg','bmp','tif']
     index_dict={}
     for i,folder_name in enumerate(folder_list):
         data_list=[]
         [data_list.extend(glob.glob(folder_name + '/*.' + e)) for e in ext]
-        data_list.sort()
+        data_list.sort(reverse=rev)
         index_dict[index_list[i]]=data_list
     return index_dict
 
@@ -132,11 +132,12 @@ class ColourBias(torch.nn.Module):
         return img
 
 class Flare_Image_Loader(data.Dataset):
-    def __init__(self, bg_path, flare_path, lsource_path, transform_base,transform_flare,mask_type=None,mask_high_on_lsource=True,placement_mode="random", num_sources=[1, 0]):
+    def __init__(self, bg_path, flare_path, lsource_path, transform_base,transform_flare,mask_type=None,mask_high_on_lsource=True,placement_mode="random", num_sources=[1, 0], rev_order=False):
+        self.rev_order = rev_order
         self.ext = ['png','jpeg','jpg','bmp','tif']
         self.data_list=[]
         [self.data_list.extend(glob.glob(bg_path + '/*.' + e)) for e in self.ext]
-        self.data_list.sort()
+        self.data_list.sort(reverse=self.rev_order)
         self.flare_dict={}
         self.flare_list=[]
         self.flare_name_list=[]
@@ -352,7 +353,7 @@ class Flare_Image_Loader(data.Dataset):
     def load_scattering_flare(self,flare_name,flare_path,lsource_path=None):
         flare_list=[]
         [flare_list.extend(glob.glob(flare_path + '/*.' + e)) for e in self.ext]
-        flare_list.sort()
+        flare_list.sort(reverse=self.rev_order)
         self.flare_name_list.append(flare_name)
         self.flare_dict[flare_name]=flare_list
         self.flare_list.extend(flare_list)
@@ -362,7 +363,7 @@ class Flare_Image_Loader(data.Dataset):
             self.using_lsources = True
             lsource_list=[]
             [lsource_list.extend(glob.glob(lsource_path + '/*.' + e)) for e in self.ext]
-            lsource_list.sort()
+            lsource_list.sort(reverse=self.rev_order)
             self.lsource_list.extend(lsource_list)
             len_lsource_list=len(lsource_list)
 

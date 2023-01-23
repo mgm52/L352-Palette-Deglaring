@@ -12,6 +12,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-pre', '--prefix', type=str, default="0")
+    parser.add_argument('-rev', '--rev_order', action='store_true')
     args = parser.parse_args()
 
     prefix = args.prefix
@@ -50,7 +51,8 @@ if __name__ == "__main__":
         mask_type=        "luminance",
         mask_high_on_lsource= False,
         placement_mode=   "random",                # "light_pos", "random", or "centre"
-        num_sources= [1.5, 1.5]
+        num_sources= [1.5, 1.5],
+        rev_order = args.rev_order
     )
 
     epoch = 2

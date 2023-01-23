@@ -116,7 +116,7 @@
                         "res_blocks": 2,
                         "dropout": 0.2,
                         "image_size": 224, // <- actually has no effect
-                        "groupnorm": true
+                        "groupnorm": false
                     },
                     "beta_schedule": {
                         "train": {

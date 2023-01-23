@@ -9,7 +9,6 @@ from torchvision.models.inception import inception_v3
 import numpy as np
 from scipy.stats import entropy
 
-from skimage.metrics import structural_similarity
 
 def mae(input, target):
     with torch.no_grad():
@@ -34,6 +33,8 @@ def psnr_y(input, target):
     return psnr(input_y, target_y)
 
 def ssim(input, target):
+    from skimage.metrics import structural_similarity
+
     assert len(input.shape) in [2, 3] and len(target.shape) in [2, 3], f"Input must be a 3D tensor, but given {input.shape} and {target.shape}"
 
     if input.shape[0] == 3:

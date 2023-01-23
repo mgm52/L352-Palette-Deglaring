@@ -119,8 +119,8 @@ if __name__ == '__main__':
     parser.add_argument('-ws', '--wandb_sweep', action='store_true')
     parser.add_argument('-wr', '--wandb_run', action='store_true')
     parser.add_argument('-P', '--port', default='21012', type=str)
-    parser.add_argument('-bs', '--batchsize', type=int, default=None)
-    parser.add_argument('-lr', '--learningrate', type=str, default=None)
+    parser.add_argument('-bs', '--batchsize_mult', type=str, default=None)
+    parser.add_argument('-lr', '--learningrate_mult', type=str, default=None)
     parser.add_argument('-sub', '--forcesub', action='store_true')
 
     args = parser.parse_args()
@@ -136,12 +136,12 @@ if __name__ == '__main__':
         wcfg = wandb.config
         #wcfg.update(args)
         opt = Praser.parse(args)
-        if args.batchsize is not None:
-            opt['datasets']['train']['dataloader']['args']['batch_size'] = args.batchsize
-            print(f"Setting batchsize to {args.batchsize}")
-        if args.learningrate is not None:
-            opt['model']['which_model']['args']['optimizers'][0]['lr'] = float(args.learningrate)
-            print(f"Setting learningrate to {args.learningrate}")
+        if args.batchsize_mult is not None:
+            opt['datasets']['train']['dataloader']['args']['batch_size'] = int(opt['datasets']['train']['dataloader']['args']['batch_size'] * float(args.batchsize_mult))
+            print(f"Setting batchsize to {opt['datasets']['train']['dataloader']['args']['batch_size']}")
+        if args.learningrate_mult is not None:
+            opt['model']['which_model']['args']['optimizers'][0]['lr'] *= float(args.learningrate_mult)
+            print(f"Setting learningrate to {opt['model']['which_model']['args']['optimizers'][0]['lr']}")
         if args.forcesub:
             opt['datasets']['train']['which_dataset']['args']['gt_is_flare_diff'] = True
             print(f"Setting gt_is_flare_diff to True")
@@ -166,7 +166,7 @@ if __name__ == '__main__':
             'parameters': {
                 'batch_size': {'values': [64]},
                 'start_lr': {'max': 5e-3, 'min': 5e-6, 'distribution': 'log_uniform_values'},
-                'weight_decay': {'values': [1e-5, 1e-6, 1e-7, 0]},
+                'weight_decay': {'values': [1e-5, 1e-6, 1e-7, 0.0]},
                 'unet_inner_channel': {'values': [8, 16, 32, 64]},
                 'unet_channel_mults': {'values': [[1, 2], [1, 2, 4], [1, 2, 4, 8]]},
                 'unet_attn_res': {'values': [[8], [16]]},
