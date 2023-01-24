@@ -5,6 +5,7 @@ from core.logger import LogTracker
 import copy
 import time
 import wandb
+import dadaptation
 class EMA():
     def __init__(self, beta=0.9999):
         super().__init__()
@@ -19,7 +20,7 @@ class EMA():
         return old * self.beta + (1 - self.beta) * new
 
 class Palette(BaseModel):
-    def __init__(self, networks, losses, sample_num, task, optimizers, mask_on_metrics, ema_scheduler=None, quiet=False, **kwargs):
+    def __init__(self, networks, losses, sample_num, task, optimizers, mask_on_metrics, ema_scheduler=None, quiet=False, use_dapapt=False, **kwargs):
         ''' must to init BaseModel with kwargs '''
         super(Palette, self).__init__(**kwargs)
 
@@ -40,7 +41,13 @@ class Palette(BaseModel):
             self.netG_EMA = self.set_device(self.netG_EMA, distributed=self.opt['distributed'])
         self.load_networks()
 
-        self.optG = torch.optim.Adam(list(filter(lambda p: p.requires_grad, self.netG.parameters())), **optimizers[0])
+        #dadaptAdam = 
+
+        if use_dapapt:
+            self.optG = dadaptation.DAdaptAdam(list(filter(lambda p: p.requires_grad, self.netG.parameters())), **optimizers[0])
+        else:
+            self.optG = torch.optim.Adam(list(filter(lambda p: p.requires_grad, self.netG.parameters())), **optimizers[0])
+            
         self.optimizers.append(self.optG)
         self.resume_training() 
 

@@ -10,3 +10,4 @@ clean-fid
 requests
 wandb
 matplotlib
+dadaptation

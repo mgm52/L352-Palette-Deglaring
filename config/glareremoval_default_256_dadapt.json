@@ -19,10 +19,9 @@
             "which_dataset": {  // import designated dataset using arguments 
                 "name": ["data.presynth_flare7k_dataset", "Flare_Image_Loader_Presynth"], // import Dataset() class / function(not recommend) from data.dataset.py (default is [data.dataset.py])
                 "args":{ 
-                    "image_path": "datasets/presynth_flare7k_64",
+                    "image_path": "datasets/presynth_flare7k_256",
                     "mask_type": "luminance",
-                    "mask_high_on_lsource": false,
-                    // "mask_gamma": 10.0 // higher == mask out more of lightsource
+                    "mask_high_on_lsource": false
                 } 
             },
             "dataloader":{
@@ -86,10 +85,11 @@
                     "ema_decay": 0.9999
                 },
                 "optimizers": [
-                    { "lr": 5e-5, "weight_decay": 0}
+                    { "lr": 1.0, "weight_decay": 0}
                 ],
                 "mask_on_metrics": true,
-                "quiet": true
+                "quiet": true,
+                "use_dapapt": true
             }
         },
         "which_networks": [ // import designated list of networks using arguments
@@ -116,8 +116,8 @@
                         "num_head_channels": 32,
                         "res_blocks": 2,
                         "dropout": 0.2,
-                        "image_size": 224,
-                        "groupnorm": true
+                        "image_size": 224, // <- actually has no effect
+                        "groupnorm": false
                     },
                     "beta_schedule": {
                         "train": {
