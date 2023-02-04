@@ -5,7 +5,6 @@ from core.logger import LogTracker
 import copy
 import time
 import wandb
-import dadaptation
 class EMA():
     def __init__(self, beta=0.9999):
         super().__init__()
@@ -44,6 +43,7 @@ class Palette(BaseModel):
         #dadaptAdam = 
 
         if use_dapapt:
+            import dadaptation
             self.optG = dadaptation.DAdaptAdam(list(filter(lambda p: p.requires_grad, self.netG.parameters())), **optimizers[0])
         else:
             self.optG = torch.optim.Adam(list(filter(lambda p: p.requires_grad, self.netG.parameters())), **optimizers[0])

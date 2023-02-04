@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 from functools import partial
 import importlib
+import random
 import traceback
 from types  import FunctionType
 import shutil
@@ -93,6 +94,9 @@ def dict2str(opt, indent_l=1):
             msg += ' ' * (indent_l * 2) + k + ': ' + str(v) + '\n'
     return msg
 
+def rand_suffix():
+    return str(random.randint(0, 100000))
+
 def parse(args):
     json_str = ''
     with open(args.config, 'r') as f:
@@ -123,7 +127,7 @@ def parse(args):
         opt['name'] = '{}_{}'.format(opt['phase'], opt['name'])
 
     ''' set log directory '''
-    experiments_root = os.path.join(opt['path']['base_dir'], '{}_{}'.format(opt['name'], get_timestamp()))
+    experiments_root = os.path.join(opt['path']['base_dir'], '{}_{}_{}'.format(opt['name'], get_timestamp(), rand_suffix()))
     mkdirs(experiments_root)
 
     ''' save json '''

@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 import sys
 import traceback
@@ -146,6 +147,15 @@ if __name__ == '__main__':
             opt['datasets']['train']['which_dataset']['args']['gt_is_flare_diff'] = True
             print(f"Setting gt_is_flare_diff to True")
         if args.resume:
+            if not "/" in args.resume:
+                # assume args.resume is in format train_glareremoval_230124_001715
+                args.resume = f"experiments/{args.resume}/checkpoint"
+                # Find the highest-numbered checkpoint
+                checkpoints = glob.glob(f"{args.resume}/*.state")
+                if len(checkpoints) > 0:
+                    checkpoints = [int(os.path.splitext(os.path.basename(checkpoint))[0]) for checkpoint in checkpoints]
+                    args.resume = f"{args.resume}/{max(checkpoints)}"
+                    print("Found checkpoint: {}".format(args.resume))
             opt['path']['resume_state'] = args.resume
             print(f"Going to resume from checkpoint {args.resume}")
 

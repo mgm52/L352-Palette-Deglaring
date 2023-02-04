@@ -3,6 +3,7 @@ experiments/*
 wandb/*
 datasets/*
 !experiments/clean.sh
+machine.file.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
